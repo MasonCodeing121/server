@@ -7,7 +7,7 @@ const io = new Server(server, {
 });
 
 let rooms = {}; 
-const ADMIN_PASSWORD = "123";
+const ADMIN_PASSWORD = "Sb226698*";
 
 io.on("connection", (socket) => {
     const origin = socket.handshake.headers.origin || "Local/Unknown";
