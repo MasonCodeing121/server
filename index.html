@@ -1,116 +1,195 @@
 <!DOCTYPE html>
-<html>
+<html lang="en">
 <head>
-    <title>Cutter RPG | Admin Panel</title>
+    <meta charset="UTF-8">
+    <title>Cutter RPG | Admin</title>
     <script src="https://cdn.socket.io/4.7.2/socket.io.min.js"></script>
     <style>
-        :root { --bg: #0f172a; --card: #1e293b; --text: #f8fafc; --primary: #38bdf8; --danger: #ef4444; --success: #22c55e; --border: #334155; }
-        body { font-family: sans-serif; background: var(--bg); color: var(--text); margin: 0; padding: 20px; }
-        .container { max-width: 1000px; margin: 0 auto; }
-        
-        /* Login */
-        #login { background: var(--card); padding: 40px; border-radius: 12px; text-align: center; width: 300px; margin: 100px auto; border: 1px solid var(--border); }
-        input { width: 100%; padding: 10px; margin: 10px 0; border-radius: 6px; border: 1px solid var(--border); background: #020617; color: white; box-sizing: border-box; }
-        
-        /* Dashboard */
-        #dashboard { display: none; }
-        .room-card { background: var(--card); border: 1px solid var(--border); border-radius: 8px; margin-bottom: 20px; }
-        .room-header { background: rgba(255,255,255,0.05); padding: 15px; font-weight: bold; color: var(--primary); display: flex; justify-content: space-between; }
-        
-        .player-list { display: grid; grid-template-columns: repeat(auto-fill, minmax(250px, 1fr)); gap: 15px; padding: 15px; }
-        .player-item { background: #020617; padding: 15px; border-radius: 6px; border: 1px solid var(--border); }
-        
-        /* Stats & HP */
-        .hp-bg { width: 100%; height: 8px; background: #334155; border-radius: 4px; margin: 10px 0; }
-        .hp-fill { height: 100%; background: var(--danger); border-radius: 4px; transition: 0.3s; }
-        .inv { font-size: 12px; color: #94a3b8; display: flex; gap: 10px; margin-top: 10px; }
-
-        /* Log */
-        .log-box { background: #020617; border: 1px solid var(--border); border-radius: 8px; height: 150px; overflow-y: auto; padding: 10px; font-family: monospace; font-size: 12px; margin-top: 20px; }
-        .log-entry { margin-bottom: 4px; border-left: 3px solid #334155; padding-left: 8px; }
-        .log-join { border-color: var(--success); }
-        .log-leave { border-color: var(--danger); }
-
-        .btn { cursor: pointer; border: none; border-radius: 4px; font-weight: bold; padding: 8px; }
-        .btn-kick { background: var(--danger); color: white; width: 100%; margin-top: 10px; }
-        .btn-main { background: var(--primary); color: #0f172a; width: 100%; }
+        :root { 
+            --bg: #0f172a; 
+            --card: #1e293b; 
+            --text: #f8fafc; 
+            --primary: #38bdf8; 
+            --danger: #ef4444; 
+            --border: #334155; 
+        }
+        body { 
+            font-family: sans-serif; 
+            background: var(--bg); 
+            color: var(--text); 
+            display: flex; 
+            justify-content: center; 
+            align-items: center; 
+            min-height: 100vh; 
+            margin: 0; 
+        }
+        .login-box { 
+            background: var(--card); 
+            padding: 2rem; 
+            border-radius: 12px; 
+            border: 1px solid var(--border); 
+            text-align: center; 
+            width: 300px; 
+        }
+        input { 
+            width: 100%; 
+            padding: 10px; 
+            margin: 10px 0; 
+            border-radius: 6px; 
+            border: 1px solid var(--border); 
+            background: #0f172a; 
+            color: white; 
+            box-sizing: border-box; 
+        }
+        .btn { 
+            width: 100%; 
+            padding: 10px; 
+            border: none; 
+            border-radius: 6px; 
+            cursor: pointer; 
+            font-weight: bold; 
+        }
+        .btn-primary { 
+            background: var(--primary); 
+            color: #0f172a; 
+        }
+        #dashboard { 
+            display: none; 
+            width: 90%; 
+            max-width: 900px; 
+            margin: 20px auto; 
+            align-self: flex-start; 
+        }
+        .room-card { 
+            background: var(--card); 
+            border: 1px solid var(--border); 
+            border-radius: 8px; 
+            margin-bottom: 20px; 
+            overflow: hidden; 
+        }
+        .room-header { 
+            background: rgba(255,255,255,0.05); 
+            padding: 10px 15px; 
+            font-weight: bold; 
+            color: var(--primary); 
+        }
+        .player-table { 
+            width: 100%; 
+            border-collapse: collapse; 
+        }
+        .player-table td { 
+            padding: 12px; 
+            border-bottom: 1px solid var(--border); 
+        }
+        .kick-btn { 
+            background: var(--danger); 
+            color: white; 
+            border: none; 
+            padding: 5px 10px; 
+            border-radius: 4px; 
+            cursor: pointer; 
+        }
+        .badge { 
+            font-size: 11px; 
+            background: #334155; 
+            padding: 2px 6px; 
+            border-radius: 4px; 
+            color: #94a3b8; 
+        }
+        h1 {
+            border-bottom: 2px solid var(--border);
+            padding-bottom: 10px;
+        }
     </style>
 </head>
 <body>
 
-<div class="container">
-    <div id="login">
+    <div id="login" class="login-box">
         <h2>Admin Access</h2>
-        <input type="password" id="pass" placeholder="Enter Password">
-        <button class="btn btn-main" onclick="doLogin()">Login</button>
+        <input type="password" id="pass" placeholder="Password">
+        <button class="btn btn-primary" onclick="doLogin()">Login</button>
     </div>
 
     <div id="dashboard">
-        <div style="display:flex; justify-content: space-between; align-items: center;">
-            <h1>Server Monitor</h1>
-            <button class="btn" style="background:var(--border); color:white" onclick="location.reload()">Logout</button>
-        </div>
-
-        <div id="roomContainer"></div>
-
-        <h3>Activity Log</h3>
-        <div class="log-box" id="log"></div>
+        <h1>Server Monitor</h1>
+        <div id="roomList"></div>
     </div>
-</div>
 
-<script>
-    const socket = io(); // Connects to the server hosting this file
+    <script>
+        // Updated to use your specific Render server URL
+        const socket = io("https://server-5jkd.onrender.com/");
 
-    function doLogin() {
-        socket.emit("admin-login", document.getElementById('pass').value);
-    }
-
-    socket.on("admin-confirmed", (rooms) => {
-        document.getElementById('login').style.display = 'none';
-        document.getElementById('dashboard').style.display = 'block';
-        render(rooms);
-    });
-
-    socket.on("admin-denied", () => alert("Incorrect Password"));
-    socket.on("admin-update", (rooms) => render(rooms));
-
-    socket.on("log-event", (data) => {
-        const log = document.getElementById('log');
-        const entry = document.createElement('div');
-        entry.className = `log-entry log-${data.type}`;
-        entry.innerHTML = `<span style="color:#64748b">[${data.time}]</span> ${data.msg}`;
-        log.appendChild(entry);
-        log.scrollTop = log.scrollHeight;
-    });
-
-    function render(rooms) {
-        const container = document.getElementById('roomContainer');
-        container.innerHTML = "";
-        const roomKeys = Object.keys(rooms).filter(r => r !== "admin-group");
-
-        if(roomKeys.length === 0) {
-            container.innerHTML = "<p>No active rooms.</p>";
-            return;
+        function doLogin() {
+            const password = document.getElementById('pass').value;
+            socket.emit("admin-login", password);
         }
 
-        roomKeys.forEach(id => {
-            let html = `<div class="room-card"><div class="room-header"><span>Room: ${id}</span> <span>${Object.keys(rooms[id]).length} Online</span></div><div class="player-list">`;
-            for(let pid in rooms[id]) {
-                const p = rooms[id][pid];
-                html += `<div class="player-item">
-                    <b>${p.name}</b> <small style="color:#64748b">${pid.substring(0,5)}</small>
-                    <div class="hp-bg"><div class="hp-fill" style="width:${p.hp}%"></div></div>
-                    <div class="inv"><span>🪵 ${p.wood}</span> <span>🍃 ${p.leaves}</span> <span>🧪 ${p.gel}</span></div>
-                    <button class="btn btn-kick" onclick="kick('${pid}')">KICK</button>
-                </div>`;
-            }
-            html += `</div></div>`;
-            container.innerHTML += html;
+        // Handle successful login
+        socket.on("admin-confirmed", (data) => {
+            document.getElementById('login').style.display = 'none';
+            document.getElementById('dashboard').style.display = 'block';
+            render(data);
         });
-    }
 
-    function kick(id) { if(confirm("Kick player?")) socket.emit("admin-kick", id); }
-</script>
+        // Handle failed login
+        socket.on("admin-denied", () => {
+            alert("Invalid Admin Password");
+        });
 
+        // Handle real-time updates from the server
+        socket.on("admin-update", (data) => render(data));
+
+        function render(rooms) {
+            const list = document.getElementById('roomList');
+            list.innerHTML = "";
+            
+            // Get all room names except the internal admin channel
+            const roomNames = Object.keys(rooms).filter(r => r !== "admin-group");
+            
+            if (roomNames.length === 0) {
+                list.innerHTML = "<p style='text-align:center; color:#64748b;'>No active rooms.</p>";
+                return;
+            }
+
+            roomNames.forEach(name => {
+                let html = `
+                    <div class="room-card">
+                        <div class="room-header">ROOM: ${name}</div>
+                        <table class="player-table">
+                `;
+
+                for (let id in rooms[name]) {
+                    const p = rooms[name][id];
+                    html += `
+                        <tr>
+                            <td>
+                                <code>${id}</code><br>
+                                <span class="badge">${p.name || 'Player'}</span>
+                                <br><small style="color:#64748b">${p.origin || 'Unknown Origin'}</small>
+                            </td>
+                            <td>
+                                <b style="color:${p.hp < 30 ? 'var(--danger)' : 'white'}">
+                                    HP: ${p.hp || 100}
+                                </b><br>
+                                <small>X: ${Math.round(p.x || 0)}, Y: ${Math.round(p.y || 0)}</small>
+                            </td>
+                            <td style="text-align:right">
+                                <button class="kick-btn" onclick="kick('${id}')">KICK</button>
+                            </td>
+                        </tr>
+                    `;
+                }
+
+                html += `</table></div>`;
+                list.innerHTML += html;
+            });
+        }
+
+        function kick(id) {
+            if(confirm("Are you sure you want to kick player: " + id + "?")) {
+                socket.emit("admin-kick", id);
+            }
+        }
+    </script>
 </body>
 </html>
