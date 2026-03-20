@@ -1,17 +1,32 @@
 const http = require("http");
 const { Server } = require("socket.io");
+const fs = require("fs"); // Required to read the index.html file
+const path = require("path"); // Required to find the file path
 
-const server = http.createServer();
+// 1. Create the HTTP server to serve the Admin Panel
+const server = http.createServer((req, res) => {
+    // When a browser visits the URL, send the index.html file
+    const filePath = path.join(__dirname, "index.html");
+    fs.readFile(filePath, (err, data) => {
+        if (err) {
+            res.writeHead(500);
+            return res.end("Error: Ensure index.html is in the same folder as server.js");
+        }
+        res.writeHead(200, { "Content-Type": "text/html" });
+        res.end(data);
+    });
+});
+
+// 2. Initialize Socket.io on the same server
 const io = new Server(server, {
     cors: {
-        origin: true, // Allows multiple URLs (like your Render game) to connect
+        origin: true, // Allows game connections from other URLs
         methods: ["GET", "POST"]
     }
 });
 
-// Main data structure to match your game's room-based logic
 let rooms = {}; 
-const ADMIN_PASSWORD = "123"; // Use this in your Admin Panel
+const ADMIN_PASSWORD = "123";
 
 io.on("connection", (socket) => {
     const origin = socket.handshake.headers.origin || "Local/Unknown";
@@ -34,38 +49,31 @@ io.on("connection", (socket) => {
     });
 
     // --- GAME LOGIC (Matches your scripts.js) ---
-    
-    // Triggered when you hit "MULTIPLAYER" or "CREATE SERVER" in your game
     socket.on('room:join', (data) => {
         const { roomId, playerName } = data;
         socket.join(roomId);
         
         if (!rooms[roomId]) rooms[roomId] = {};
         
-        // Initialize player data structure
         rooms[roomId][socket.id] = {
             name: playerName || "Player",
             origin: origin,
             x: 0, y: 0, hp: 100
         };
 
-        console.log(`User ${socket.id} joined room: ${roomId}`);
-        socket.emit('room:joined', { room: { id: roomId } }); // Notify game client
+        socket.emit('room:joined', { room: { id: roomId } });
         updateAdmins();
     });
 
-    // Triggered by your game's movement loop
     socket.on('game:event', (data) => {
         const { roomId, payload } = data;
         
         if (rooms[roomId] && rooms[roomId][socket.id]) {
-            // Update the server's record of this player
             rooms[roomId][socket.id] = { 
                 ...rooms[roomId][socket.id], 
                 ...payload 
             };
 
-            // Broadcast to other players in the same room
             socket.to(roomId).emit('game:event', {
                 senderId: socket.id,
                 payload: payload
@@ -79,9 +87,7 @@ io.on("connection", (socket) => {
         socket.rooms.forEach(roomId => {
             if (rooms[roomId] && rooms[roomId][socket.id]) {
                 delete rooms[roomId][socket.id];
-                // Notify game clients
                 io.to(roomId).emit('room:player_left', { player: { id: socket.id } });
-                
                 if (Object.keys(rooms[roomId]).length === 0) delete rooms[roomId];
             }
         });
