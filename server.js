@@ -10,12 +10,21 @@ let rooms = {};
 const ADMIN_PASSWORD = "123";
 
 io.on("connection", (socket) => {
+    const origin = socket.handshake.headers.origin || "Local/Unknown";
+
     socket.on("admin-login", (pass) => {
         if (pass === ADMIN_PASSWORD) {
             socket.join("admin-group");
             socket.emit("admin-confirmed", rooms);
         } else {
             socket.emit("admin-denied");
+        }
+    });
+
+    socket.on("admin-kick", (targetId) => {
+        if (socket.rooms.has("admin-group")) {
+            const target = io.sockets.sockets.get(targetId);
+            if (target) target.disconnect();
         }
     });
 
@@ -26,6 +35,7 @@ io.on("connection", (socket) => {
         
         rooms[roomId][socket.id] = {
             name: playerName || "Player",
+            origin: origin,
             x: 0, y: 0, hp: 100, moving: false, dir: "down", swinging: false
         };
 
@@ -37,8 +47,8 @@ io.on("connection", (socket) => {
         const { roomId, payload } = data;
         if (rooms[roomId] && rooms[roomId][socket.id]) {
             rooms[roomId][socket.id] = { ...rooms[roomId][socket.id], ...payload };
-            // Send to everyone else in the room
             socket.to(roomId).emit('game:event', { senderId: socket.id, payload: payload });
+            io.to("admin-group").emit("admin-update", rooms);
         }
     });
 
