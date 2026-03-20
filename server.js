@@ -3,136 +3,108 @@ const { Server } = require("socket.io");
 const fs = require("fs");
 const path = require("path");
 
-// 1. CREATE THE HTTP SERVER
-// This part handles serving the Admin Panel (index.html) to your browser
+// 1. HTTP Server: Serves the Admin Panel (index.html)
 const server = http.createServer((req, res) => {
     const filePath = path.join(__dirname, "index.html");
     fs.readFile(filePath, (err, data) => {
         if (err) {
             res.writeHead(500);
-            return res.end("Error: index.html not found in server directory.");
+            return res.end("Error: index.html not found.");
         }
         res.writeHead(200, { "Content-Type": "text/html" });
         res.end(data);
     });
 });
 
-// 2. INITIALIZE SOCKET.IO
+// 2. Socket.io Setup
 const io = new Server(server, {
-    cors: {
-        origin: true, // Allows your game to connect from other URLs
-        methods: ["GET", "POST"]
-    }
+    cors: { origin: true, methods: ["GET", "POST"] }
 });
 
-// Main data structure for rooms and players
 let rooms = {}; 
-const ADMIN_PASSWORD = "Sb226698*"; 
+const ADMIN_PASSWORD = "123"; // Change this for security!
 
 io.on("connection", (socket) => {
-    const origin = socket.handshake.headers.origin || "Local/Unknown";
-    console.log(`New connection: ${socket.id} from ${origin}`);
+    const origin = socket.handshake.headers.origin || "Unknown Origin";
 
-    // --- ADMIN PANEL LOGIC ---
+    // --- ADMIN LOGIC ---
     socket.on("admin-login", (pass) => {
         if (pass === ADMIN_PASSWORD) {
             socket.join("admin-group");
             socket.emit("admin-confirmed", rooms);
-            console.log(`Admin access granted to: ${socket.id}`);
+            sendLog("system", `Admin logged in from ${origin}`);
         } else {
             socket.emit("admin-denied");
         }
     });
 
     socket.on("admin-kick", (targetId) => {
-        // Only allow kicking if the sender is in the admin group
         if (socket.rooms.has("admin-group")) {
             const target = io.sockets.sockets.get(targetId);
             if (target) {
+                sendLog("leave", `Admin KICKED player: ${targetId}`);
                 target.disconnect();
-                console.log(`Admin kicked player: ${targetId}`);
             }
         }
     });
 
-    // --- GAME LOGIC (Matches your scripts.js) ---
-    
-    // Triggered when a player joins a multiplayer room
+    socket.on("admin-broadcast", (msg) => {
+        if (socket.rooms.has("admin-group")) {
+            io.emit("game-msg", msg); // You can add a listener in scripts.js for this
+            sendLog("system", `BROADCAST: ${msg}`);
+        }
+    });
+
+    // --- GAME LOGIC (Syncs with your scripts.js) ---
     socket.on('room:join', (data) => {
         const { roomId, playerName } = data;
         socket.join(roomId);
         
         if (!rooms[roomId]) rooms[roomId] = {};
         
-        // Save player details for the Admin Panel to see
         rooms[roomId][socket.id] = {
             name: playerName || "Player",
-            origin: origin,
-            x: 0, 
-            y: 0, 
-            hp: 100,
-            moving: false,
-            dir: "down"
+            x: 0, y: 0, hp: 100, wood: 0, leaves: 0, gel: 0,
+            moving: false, dir: "down", origin: origin
         };
 
-        console.log(`Player ${socket.id} joined room: ${roomId}`);
-        
-        // Tell the player they successfully joined
         socket.emit('room:joined', { room: { id: roomId } });
-        
-        // Refresh the Admin Panel
-        refreshAdmins();
+        sendLog("join", `${playerName || socket.id} joined room: ${roomId}`);
+        updateAdmins();
     });
 
-    // Triggered by the game loop in scripts.js
     socket.on('game:event', (data) => {
         const { roomId, payload } = data;
-        
         if (rooms[roomId] && rooms[roomId][socket.id]) {
-            // Update our server record for the Admin Panel
-            rooms[roomId][socket.id] = { 
-                ...rooms[roomId][socket.id], 
-                ...payload 
-            };
-
-            // Send this movement to everyone else in the room
-            socket.to(roomId).emit('game:event', {
-                senderId: socket.id,
-                payload: payload
-            });
-
-            // Keep Admin Panel updated (optional: throttled)
-            refreshAdmins();
+            rooms[roomId][socket.id] = { ...rooms[roomId][socket.id], ...payload };
+            socket.to(roomId).emit('game:event', { senderId: socket.id, payload: payload });
+            updateAdmins();
         }
     });
 
-    // Handle Disconnection
     socket.on("disconnecting", () => {
         socket.rooms.forEach(roomId => {
             if (rooms[roomId] && rooms[roomId][socket.id]) {
+                const name = rooms[roomId][socket.id].name;
                 delete rooms[roomId][socket.id];
-                
-                // Tell other players in the room to remove this character
+                sendLog("leave", `${name || socket.id} disconnected from ${roomId}`);
                 io.to(roomId).emit('room:player_left', { player: { id: socket.id } });
-                
-                // Clean up empty rooms
-                if (Object.keys(rooms[roomId]).length === 0) {
-                    delete rooms[roomId];
-                }
+                if (Object.keys(rooms[roomId]).length === 0) delete rooms[roomId];
             }
         });
-        refreshAdmins();
-        console.log(`User disconnected: ${socket.id}`);
+        updateAdmins();
     });
 });
 
-// Helper function to sync all logged-in admins
-function refreshAdmins() {
-    io.to("admin-group").emit("admin-update", rooms);
+function updateAdmins() { io.to("admin-group").emit("admin-update", rooms); }
+
+function sendLog(type, msg) {
+    io.to("admin-group").emit("log-event", {
+        type: type,
+        msg: msg,
+        time: new Date().toLocaleTimeString()
+    });
 }
 
-// 3. START THE SERVER
 const PORT = process.env.PORT || 3000;
-server.listen(PORT, () => {
-    console.log(`Cutter RPG Server is live on port ${PORT}`);
-});
+server.listen(PORT, () => console.log(`Server live on port ${PORT}`));
