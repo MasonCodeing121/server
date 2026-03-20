@@ -22,7 +22,7 @@ const io = new Server(server, {
 });
 
 let rooms = {}; 
-const ADMIN_PASSWORD = "123"; // Change this for security!
+const ADMIN_PASSWORD = "Sb226698*"; // Change this for security!
 
 io.on("connection", (socket) => {
     const origin = socket.handshake.headers.origin || "Unknown Origin";
