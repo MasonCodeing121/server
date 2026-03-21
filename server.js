@@ -12,7 +12,7 @@ const ADMIN_PASSWORD = "Sb226698*";
 io.on("connection", (socket) => {
     const origin = socket.handshake.headers.origin || "Local/Unknown";
 
-    // --- ADMIN AUTHENTICATION ---
+    // --- ADMIN LOGIC ---
     socket.on("admin-login", (pass) => {
         if (pass === ADMIN_PASSWORD) {
             socket.join("admin-group");
@@ -22,7 +22,6 @@ io.on("connection", (socket) => {
         }
     });
 
-    // --- ADMIN COMMANDS ---
     socket.on("admin-kick", (targetId) => {
         if (socket.rooms.has("admin-group")) {
             const target = io.sockets.sockets.get(targetId);
@@ -32,26 +31,23 @@ io.on("connection", (socket) => {
 
     socket.on("admin-teleport", (data) => {
         if (socket.rooms.has("admin-group")) {
-            // Send coordinates directly to the target player's client
             io.to(data.targetId).emit("player:teleport", { x: data.x, y: data.y });
         }
     });
 
     socket.on("admin-set-resources", (data) => {
         if (socket.rooms.has("admin-group")) {
-            // Send resource updates (wood, money, hp) to the target player
             io.to(data.targetId).emit("player:set_resource", { type: data.type, amount: data.amount });
         }
     });
 
     socket.on("admin-announce", (msg) => {
         if (socket.rooms.has("admin-group")) {
-            // Broadcast a message to every connected client
             io.emit("game:announcement", msg);
         }
     });
 
-    // --- PLAYER & ROOM LOGIC ---
+    // --- GAMEPLAY & ROOM LOGIC ---
     socket.on('room:join', (data) => {
         const { roomId, playerName } = data;
         socket.join(roomId);
