@@ -1,24 +1,53 @@
 const http = require("http");
+const fs = require("fs");
+const path = require("path");
 const { Server } = require("socket.io");
 
-const server = http.createServer();
+function serveStatic(req, res) {
+    let filePath = path.join(
+        __dirname,
+        req.url === "/" ? "index.html" : req.url,
+    );
+    const ext = path.extname(filePath);
+    const mimeTypes = {
+        ".html": "text/html",
+        ".js": "text/javascript",
+        ".css": "text/css",
+        ".png": "image/png",
+        ".jpg": "image/jpeg",
+        ".jpeg": "image/jpeg",
+        ".gif": "image/gif",
+        ".svg": "image/svg+xml",
+    };
+    fs.readFile(filePath, (err, data) => {
+        if (err) {
+            res.writeHead(404);
+            res.end("Not found");
+            return;
+        }
+        res.writeHead(200, {
+            "Content-Type": mimeTypes[ext] || "application/octet-stream",
+        });
+        res.end(data);
+    });
+}
+
+const server = http.createServer(serveStatic);
 const io = new Server(server, {
-    cors: { origin: true, methods: ["GET", "POST"] } // Allows the admin panel to connect
+    cors: { origin: true, methods: ["GET", "POST"] },
 });
 
-let rooms = {}; 
+let rooms = {};
 const ADMIN_PASSWORD = "Sb226698*";
 
 io.on("connection", (socket) => {
     const origin = socket.handshake.headers.origin || "Local/Unknown";
 
-    // --- FIX 1: Enhanced Login ---
     socket.on("admin-login", (pass) => {
         if (pass === ADMIN_PASSWORD) {
             socket.join("admin-group");
-            // Send the full rooms object immediately so the dashboard populates
             socket.emit("admin-confirmed", rooms);
-            console.log("Admin logged in successfully");
+            console.log("Admin logged in");
         } else {
             socket.emit("admin-denied");
         }
@@ -29,49 +58,100 @@ io.on("connection", (socket) => {
             const target = io.sockets.sockets.get(targetId);
             if (target) {
                 target.disconnect();
-                // Refresh all admins after a kick
                 io.to("admin-group").emit("admin-update", rooms);
             }
         }
     });
 
-    socket.on('room:join', (data) => {
-        const { roomId, playerName } = data;
-        socket.join(roomId);
-        if (!rooms[roomId]) rooms[roomId] = {};
-        
-        rooms[roomId][socket.id] = {
-            name: playerName || "Player",
-            origin: origin,
-            x: 0, y: 0, hp: 100, moving: false, dir: "down", swinging: false
-        };
+    // ── THE MISSING HANDLER ──────────────────────────────────────────────────
+    socket.on("admin-set-resource", (data) => {
+    if (!socket.rooms.has("admin-group")) return;
+    const { targetId, updates } = data; // 'updates' is an object like { wood: 10, money: 50 }
 
-        socket.emit('room:joined', { room: { id: roomId } });
-        // --- FIX 2: Ensure broadcast to admin group ---
+    for (let roomId in rooms) {
+        if (rooms[roomId][targetId]) {
+            // Apply all changes to the server state
+            Object.assign(rooms[roomId][targetId], updates);
+        }
+    }
+
+    const target = io.sockets.sockets.get(targetId);
+    if (target) {
+        // Send the whole update object to the player
+        target.emit("player:set_resources", updates); 
+    }
+
+    io.to("admin-group").emit("admin-update", rooms);
+});
+
+        // Tell the target player's game client to apply the change
+        const target = io.sockets.sockets.get(targetId);
+        if (target) {
+            target.emit("player:set_resource", { type, amount });
+        }
+
+        // Refresh all admin dashboards
         io.to("admin-group").emit("admin-update", rooms);
     });
 
-    socket.on('game:event', (data) => {
+    socket.on("admin-announce", (msg) => {
+        if (!socket.rooms.has("admin-group")) return;
+        io.emit("game:announcement", msg);
+    });
+    // ─────────────────────────────────────────────────────────────────────────
+
+    socket.on("room:join", (data) => {
+        const { roomId, playerName } = data;
+        socket.join(roomId);
+        if (!rooms[roomId]) rooms[roomId] = {};
+        rooms[roomId][socket.id] = {
+            name: playerName || "Player",
+            origin: origin,
+            x: 0,
+            y: 0,
+            hp: 100,
+            moving: false,
+            dir: "down",
+            swinging: false,
+            wood: 0,
+            money: 0,
+            leaves: 0,
+            gel: 0,
+            stone: 0,
+            crystals: 0,
+        };
+        socket.emit("room:joined", { room: { id: roomId } });
+        io.to("admin-group").emit("admin-update", rooms);
+    });
+
+    socket.on("game:event", (data) => {
         const { roomId, payload } = data;
         if (rooms[roomId] && rooms[roomId][socket.id]) {
-            rooms[roomId][socket.id] = { ...rooms[roomId][socket.id], ...payload };
-            socket.to(roomId).emit('game:event', { senderId: socket.id, payload: payload });
-            // Update admins in real-time as players move
+            rooms[roomId][socket.id] = {
+                ...rooms[roomId][socket.id],
+                ...payload,
+            };
+            socket
+                .to(roomId)
+                .emit("game:event", { senderId: socket.id, payload });
             io.to("admin-group").emit("admin-update", rooms);
         }
     });
 
     socket.on("disconnecting", () => {
-        socket.rooms.forEach(roomId => {
+        socket.rooms.forEach((roomId) => {
             if (rooms[roomId] && rooms[roomId][socket.id]) {
                 delete rooms[roomId][socket.id];
-                io.to(roomId).emit('room:player_left', { player: { id: socket.id } });
-                if (Object.keys(rooms[roomId]).length === 0) delete rooms[roomId];
+                io.to(roomId).emit("room:player_left", {
+                    player: { id: socket.id },
+                });
+                if (Object.keys(rooms[roomId]).length === 0)
+                    delete rooms[roomId];
             }
         });
         io.to("admin-group").emit("admin-update", rooms);
     });
 });
 
-const PORT = process.env.PORT || 3000;
+const PORT = process.env.PORT || 5000;
 server.listen(PORT, () => console.log(`Server running on port ${PORT}`));
