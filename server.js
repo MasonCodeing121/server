@@ -12,7 +12,7 @@ const ADMIN_PASSWORD = "Sb226698*";
 io.on("connection", (socket) => {
     const origin = socket.handshake.headers.origin || "Local/Unknown";
 
-    // --- ADMIN LOGIC ---
+    // --- ADMIN SYSTEM ---
     socket.on("admin-login", (pass) => {
         if (pass === ADMIN_PASSWORD) {
             socket.join("admin-group");
@@ -31,23 +31,26 @@ io.on("connection", (socket) => {
 
     socket.on("admin-teleport", (data) => {
         if (socket.rooms.has("admin-group")) {
+            // Force move a specific player
             io.to(data.targetId).emit("player:teleport", { x: data.x, y: data.y });
         }
     });
 
     socket.on("admin-set-resources", (data) => {
         if (socket.rooms.has("admin-group")) {
+            // Modify player stats/inventory
             io.to(data.targetId).emit("player:set_resource", { type: data.type, amount: data.amount });
         }
     });
 
     socket.on("admin-announce", (msg) => {
         if (socket.rooms.has("admin-group")) {
+            // Global broadcast to all players in all rooms
             io.emit("game:announcement", msg);
         }
     });
 
-    // --- GAMEPLAY & ROOM LOGIC ---
+    // --- MULTIPLAYER CORE ---
     socket.on('room:join', (data) => {
         const { roomId, playerName } = data;
         socket.join(roomId);
