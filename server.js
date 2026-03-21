@@ -4,6 +4,13 @@ const path = require("path");
 const { Server } = require("socket.io");
 
 function serveStatic(req, res) {
+    // Health check to verify server is awake and bypass 502s
+    if (req.url === "/health") {
+        res.writeHead(200, { "Content-Type": "text/plain" });
+        res.end("Server is online");
+        return;
+    }
+
     let filePath = path.join(
         __dirname,
         req.url === "/" ? "index.html" : req.url,
@@ -19,6 +26,7 @@ function serveStatic(req, res) {
         ".gif": "image/gif",
         ".svg": "image/svg+xml",
     };
+
     fs.readFile(filePath, (err, data) => {
         if (err) {
             res.writeHead(404);
@@ -33,8 +41,13 @@ function serveStatic(req, res) {
 }
 
 const server = http.createServer(serveStatic);
+
+// UPDATED: More robust CORS to allow your specific Admin Panel and any other clients
 const io = new Server(server, {
-    cors: { origin: true, methods: ["GET", "POST"] },
+    cors: { 
+        origin: "*", // Allows any origin to connect, fixing the CORS block
+        methods: ["GET", "POST"] 
+    },
 });
 
 let rooms = {};
@@ -47,7 +60,7 @@ io.on("connection", (socket) => {
         if (pass === ADMIN_PASSWORD) {
             socket.join("admin-group");
             socket.emit("admin-confirmed", rooms);
-            console.log("Admin logged in");
+            console.log("Admin logged in from:", origin);
         } else {
             socket.emit("admin-denied");
         }
@@ -63,34 +76,21 @@ io.on("connection", (socket) => {
         }
     });
 
-    // ── THE MISSING HANDLER ──────────────────────────────────────────────────
     socket.on("admin-set-resource", (data) => {
-    if (!socket.rooms.has("admin-group")) return;
-    const { targetId, updates } = data; // 'updates' is an object like { wood: 10, money: 50 }
+        if (!socket.rooms.has("admin-group")) return;
+        const { targetId, type, amount } = data;
 
-    for (let roomId in rooms) {
-        if (rooms[roomId][targetId]) {
-            // Apply all changes to the server state
-            Object.assign(rooms[roomId][targetId], updates);
+        for (let roomId in rooms) {
+            if (rooms[roomId][targetId] !== undefined) {
+                rooms[roomId][targetId][type] = amount;
+            }
         }
-    }
 
-    const target = io.sockets.sockets.get(targetId);
-    if (target) {
-        // Send the whole update object to the player
-        target.emit("player:set_resources", updates); 
-    }
-
-    io.to("admin-group").emit("admin-update", rooms);
-});
-
-        // Tell the target player's game client to apply the change
         const target = io.sockets.sockets.get(targetId);
         if (target) {
             target.emit("player:set_resource", { type, amount });
         }
 
-        // Refresh all admin dashboards
         io.to("admin-group").emit("admin-update", rooms);
     });
 
@@ -98,7 +98,6 @@ io.on("connection", (socket) => {
         if (!socket.rooms.has("admin-group")) return;
         io.emit("game:announcement", msg);
     });
-    // ─────────────────────────────────────────────────────────────────────────
 
     socket.on("room:join", (data) => {
         const { roomId, playerName } = data;
