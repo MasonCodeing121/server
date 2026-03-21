@@ -2,67 +2,87 @@
 <html>
 <head>
     <title>RPG Admin Panel</title>
+    <script src="https://cdn.socket.io/4.7.2/socket.io.min.js"></script>
     <style>
-        body { margin: 0; background: #222; color: white; font-family: sans-serif; }
-        #admin-overlay { position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.9); display: none; padding: 20px; overflow-y: auto; }
-        .player-card { background: #333; padding: 15px; margin: 10px; border-radius: 8px; border: 1px solid #444; display: inline-block; vertical-align: top; width: 280px; }
-        .controls input { width: 60px; padding: 5px; margin: 2px; background: #444; color: white; border: 1px solid #666; }
-        .controls button { padding: 5px 10px; cursor: pointer; background: #27ae60; color: white; border: none; border-radius: 3px; margin-top: 5px; }
-        .kick-btn { background: #c0392b !important; }
-        #announcement-bar { margin-bottom: 20px; padding: 10px; background: #444; border-radius: 5px; }
+        body { margin: 0; background: #0f172a; color: white; font-family: sans-serif; }
+        #admin-overlay { padding: 20px; }
+        .player-card { 
+            background: #1e293b; padding: 15px; margin: 10px; border-radius: 8px; 
+            border: 1px solid #334155; display: inline-block; vertical-align: top; width: 280px; 
+        }
+        .controls input { width: 60px; padding: 5px; margin: 2px; background: #0f172a; color: white; border: 1px solid #444; }
+        .controls button { padding: 5px 10px; cursor: pointer; background: #38bdf8; color: #0f172a; border: none; border-radius: 3px; font-weight: bold; margin-top: 5px; }
+        .kick-btn { background: #ef4444 !important; color: white !important; }
+        #announcement-bar { margin-bottom: 20px; padding: 15px; background: #1e293b; border-radius: 5px; border: 1px solid #334155; }
+        #announcement-bar input { padding: 8px; width: 300px; background: #0f172a; border: 1px solid #444; color: white; border-radius: 4px; }
     </style>
 </head>
 <body>
-    <div id="admin-overlay">
-        <h1>ADMIN DASHBOARD</h1>
+    <div id="admin-overlay" style="display:none;">
+        <h1>🛡️ ADMIN SYSTEM MONITOR</h1>
+        
         <div id="announcement-bar">
-            <input type="text" id="global-msg" placeholder="System message...">
-            <button onclick="sendAnnouncement()">Send Global Announcement</button>
+            <strong>GLOBAL BROADCAST:</strong> 
+            <input type="text" id="global-msg" placeholder="Type system message...">
+            <button onclick="sendAnnouncement()">SEND TO ALL</button>
         </div>
+
         <div id="player-list"></div>
-        <button onclick="document.getElementById('admin-overlay').style.display='none'">Close</button>
     </div>
 
-    <script src="/socket.io/socket.io.js"></script>
     <script>
-        const socket = io();
+        // Connect to your specific Render server
+        const socket = io("https://server-5jkd.onrender.com/");
         
         // Login prompt on load
         const pass = prompt("Admin Password:");
         socket.emit("admin-login", pass);
 
-        socket.on("admin-confirmed", () => { document.getElementById('admin-overlay').style.display='block'; });
-        socket.on("admin-denied", () => { alert("Wrong password."); });
+        socket.on("admin-confirmed", (rooms) => { 
+            document.getElementById('admin-overlay').style.display='block'; 
+            render(rooms); 
+        });
 
-        socket.on("admin-update", (rooms) => {
+        socket.on("admin-denied", () => { 
+            alert("Access Denied: Invalid Password"); 
+            window.location.reload(); 
+        });
+
+        socket.on("admin-update", (rooms) => render(rooms));
+
+        function render(rooms) {
             const list = document.getElementById("player-list");
             list.innerHTML = "";
+            
             for (let roomId in rooms) {
+                // Skip the internal admin group
+                if (roomId === "admin-group") continue;
+
                 for (let id in rooms[roomId]) {
                     const p = rooms[roomId][id];
                     list.innerHTML += `
                         <div class="player-card">
-                            <strong>${p.name}</strong> (${id})<br>
-                            Room: ${roomId}<br>
-                            Pos: ${Math.round(p.x)}, ${Math.round(p.y)} | HP: ${p.hp}<br>
+                            <strong style="color:#38bdf8">${p.name || 'Unknown'}</strong> <small>(${id})</small><br>
+                            <span style="color:#94a3b8">Room: ${roomId}</span><br>
+                            Pos: ${Math.round(p.x)}, ${Math.round(p.y)} | <span style="color:#ef4444">HP: ${p.hp}</span><br>
                             <div class="controls">
-                                <hr>
-                                <strong>Teleport</strong><br>
-                                X: <input id="x-${id}" value="${p.x}"> 
-                                Y: <input id="y-${id}" value="${p.y}">
-                                <button onclick="tp('${id}')">Go</button>
-                                <hr>
-                                <strong>Resources</strong><br>
-                                Wood: <input id="wood-${id}" value="0">
-                                Money: <input id="money-${id}" value="0">
-                                <button onclick="setRes('${id}')">Set</button>
-                                <hr>
-                                <button class="kick-btn" onclick="kick('${id}')">Kick Player</button>
+                                <hr style="border:0; border-top:1px solid #334155">
+                                <strong>Teleport Player</strong><br>
+                                X: <input id="x-${id}" value="${Math.round(p.x)}"> 
+                                Y: <input id="y-${id}" value="${Math.round(p.y)}">
+                                <button onclick="tp('${id}')">MOVE</button>
+                                <hr style="border:0; border-top:1px solid #334155">
+                                <strong>Modify Stats</strong><br>
+                                Wood: <input id="wood-${id}" value="${p.wood || 0}">
+                                Money: <input id="money-${id}" value="${p.money || 0}">
+                                <button onclick="setRes('${id}')">UPDATE</button>
+                                <hr style="border:0; border-top:1px solid #334155">
+                                <button class="kick-btn" onclick="kick('${id}')">KICK FROM SERVER</button>
                             </div>
                         </div>`;
                 }
             }
-        });
+        }
 
         function tp(id) {
             const x = parseInt(document.getElementById(`x-${id}`).value);
@@ -73,14 +93,23 @@
         function setRes(id) {
             const wood = parseInt(document.getElementById(`wood-${id}`).value);
             const money = parseInt(document.getElementById(`money-${id}`).value);
-            socket.emit("admin-set-resources", { targetId: id, type: 'wood', amount: wood });
+            // Updates both stats in the player's local save
+            socket.emit("admin-set-resources", { targetId: id, type: 'wood', amount: wood }); 
             socket.emit("admin-set-resources", { targetId: id, type: 'money', amount: money });
         }
 
-        function kick(id) { socket.emit("admin-kick", id); }
+        function kick(id) { 
+            if(confirm("Kick this player immediately?")) {
+                socket.emit("admin-kick", id);
+            }
+        }
+
         function sendAnnouncement() {
             const msg = document.getElementById("global-msg").value;
-            socket.emit("admin-announce", msg);
+            if(msg) {
+                socket.emit("admin-announce", msg);
+                document.getElementById("global-msg").value = "";
+            }
         }
     </script>
 </body>
