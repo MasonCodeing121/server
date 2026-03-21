@@ -2,166 +2,122 @@
 <html lang="en">
 <head>
     <meta charset="UTF-8">
-    <title>Cutter RPG | Admin Panel</title>
+    <title>Cutter RPG | Admin Terminal</title>
     <script src="https://cdn.socket.io/4.7.2/socket.io.min.js"></script>
     <style>
-        :root { 
-            --bg: #0f172a; 
-            --card: #1e293b; 
-            --text: #f8fafc; 
-            --primary: #38bdf8; 
-            --danger: #ef4444; 
-            --border: #334155; 
-        }
-        body { 
-            font-family: 'Segoe UI', sans-serif; 
-            background: var(--bg); 
-            color: var(--text); 
-            margin: 0; 
-            display: flex; 
-            flex-direction: column; 
-            align-items: center; 
-            padding: 20px;
-        }
-
-        /* NEW LOGIN BOX STYLE */
-        #login-container {
-            margin-top: 100px;
-            background: var(--card);
-            padding: 30px;
-            border-radius: 12px;
-            border: 1px solid var(--border);
-            box-shadow: 0 10px 25px rgba(0,0,0,0.3);
-            text-align: center;
-            width: 350px;
-        }
-        #login-container h1 { color: var(--primary); margin-bottom: 5px; }
-        #login-container p { color: #94a3b8; font-size: 0.9rem; margin-bottom: 20px; }
+        :root { --bg: #0b0f1a; --card: #161b2d; --text: #f8fafc; --primary: #38bdf8; --danger: #ef4444; --border: #2d3748; --success: #22c55e; }
+        body { font-family: 'Segoe UI', sans-serif; background: var(--bg); color: var(--text); margin: 0; padding: 20px; display: flex; flex-direction: column; align-items: center; }
         
-        input { 
-            width: 90%; 
-            padding: 12px; 
-            margin-bottom: 15px; 
-            border-radius: 8px; 
-            border: 1px solid var(--border); 
-            background: #0f172a; 
-            color: white; 
-            font-size: 1rem;
-        }
-        
-        .btn-login {
-            width: 100%;
-            padding: 12px;
-            background: var(--primary);
-            border: none;
-            border-radius: 8px;
-            color: #0f172a;
-            font-weight: bold;
-            cursor: pointer;
-            transition: opacity 0.2s;
-        }
-        .btn-login:hover { opacity: 0.9; }
+        /* Login Box */
+        #login-container { margin-top: 100px; background: var(--card); padding: 40px; border-radius: 16px; border: 1px solid var(--border); box-shadow: 0 20px 50px rgba(0,0,0,0.5); text-align: center; width: 380px; }
+        #login-container h1 { color: var(--primary); margin: 0; font-size: 1.8rem; }
+        #login-container p { color: #94a3b8; margin: 10px 0 25px; font-size: 0.9rem; }
+        input[type="password"], input[type="number"] { width: 100%; padding: 12px; margin: 8px 0; border-radius: 8px; border: 1px solid var(--border); background: #0f172a; color: white; box-sizing: border-box; }
+        .btn { width: 100%; padding: 12px; background: var(--primary); border: none; border-radius: 8px; color: #0b0f1a; font-weight: bold; cursor: pointer; transition: 0.2s; }
+        .btn:hover { filter: brightness(1.1); }
 
-        /* DASHBOARD STYLE */
-        #admin-dashboard { display: none; width: 100%; max-width: 900px; }
-        .room-card { 
-            background: var(--card); 
-            border: 1px solid var(--border); 
-            border-radius: 8px; 
-            margin-bottom: 20px; 
-            padding: 15px; 
-        }
-        .room-header { color: var(--primary); font-weight: bold; border-bottom: 1px solid var(--border); padding-bottom: 10px; margin-bottom: 10px; }
-        table { width: 100%; border-collapse: collapse; }
-        td { padding: 10px; border-bottom: 1px solid #334155; }
-        .kick-btn { background: var(--danger); color: white; border: none; padding: 5px 10px; border-radius: 4px; cursor: pointer; }
+        /* Dashboard */
+        #admin-dashboard { display: none; width: 100%; max-width: 1000px; }
+        .room-section { background: var(--card); border: 1px solid var(--border); border-radius: 12px; padding: 20px; margin-bottom: 30px; }
+        .room-title { font-size: 1.2rem; font-weight: bold; color: var(--primary); margin-bottom: 15px; border-bottom: 1px solid var(--border); padding-bottom: 10px; }
+        
+        .player-row { display: grid; grid-template-columns: 1fr 2fr 1.5fr; gap: 15px; align-items: center; padding: 15px; border-bottom: 1px solid #2d3748; }
+        .player-info b { font-size: 1.1rem; }
+        .player-info span { font-size: 0.8rem; color: #64748b; }
+        
+        /* Controls */
+        .controls { display: flex; gap: 10px; align-items: center; }
+        .controls label { font-size: 0.75rem; color: #94a3b8; display: block; }
+        .small-input { width: 70px !important; padding: 5px !important; margin: 0 !important; font-size: 0.85rem; }
+        .set-btn { padding: 5px 10px; background: var(--success); border: none; border-radius: 4px; color: white; cursor: pointer; font-size: 0.8rem; }
+        .kick-btn { background: var(--danger); padding: 8px 15px; border-radius: 6px; border: none; color: white; cursor: pointer; }
     </style>
 </head>
 <body>
 
     <div id="login-container">
-        <h1>Cutter Admin</h1>
-        <p>Enter management credentials to proceed</p>
-        <input type="password" id="pass-input" placeholder="Password...">
-        <button class="btn-login" onclick="attemptLogin()">Access Terminal</button>
-        <div id="error-msg" style="color: var(--danger); margin-top: 10px; font-size: 0.8rem; display: none;">Invalid Password</div>
+        <h1>Admin Terminal</h1>
+        <p>System Management & Player Control</p>
+        <input type="password" id="pass-input" placeholder="Management Password">
+        <button class="btn" onclick="attemptLogin()">Log In</button>
+        <div id="error-msg" style="color: var(--danger); display:none; margin-top:10px;">Access Denied</div>
     </div>
 
     <div id="admin-dashboard">
-        <h2>Live Server Monitor</h2>
+        <h2 style="text-align:left">Active Sessions</h2>
         <div id="room-list"></div>
     </div>
 
     <script>
         const socket = io("https://server-5jkd.onrender.com/");
-        let isAuthenticated = false;
+        let authenticated = false;
+        let isTyping = false;
 
         function attemptLogin() {
-            const pass = document.getElementById('pass-input').value;
-            socket.emit("admin-login", pass);
+            socket.emit("admin-login", document.getElementById('pass-input').value);
         }
 
         socket.on("admin-confirmed", (rooms) => {
-            isAuthenticated = true;
+            authenticated = true;
             document.getElementById('login-container').style.display = 'none';
             document.getElementById('admin-dashboard').style.display = 'block';
-            renderRooms(rooms);
-        });
-
-        socket.on("admin-denied", () => {
-            document.getElementById('error-msg').style.display = 'block';
+            updateUI(rooms);
         });
 
         socket.on("admin-update", (rooms) => {
-            if (isAuthenticated) {
-                renderRooms(rooms);
-            }
+            if (authenticated && !isTyping) updateUI(rooms);
         });
 
-        function renderRooms(rooms) {
+        function updateUI(rooms) {
             const list = document.getElementById('room-list');
-            
-            // CRITICAL: We check if any input currently has focus
-            // If the user is typing, we DON'T overwrite the HTML
-            if (document.activeElement.tagName === 'INPUT') return;
-
             list.innerHTML = "";
-            for (let name in rooms) {
-                let html = `
-                    <div class="room-card">
-                        <div class="room-header">ROOM: ${name}</div>
-                        <table>
-                `;
-                for (let id in rooms[name]) {
-                    const p = rooms[name][id];
-                    html += `
-                        <tr>
-                            <td>
-                                <b>${p.name || 'Player'}</b><br>
-                                <small style="color:#64748b">${id}</small>
-                            </td>
-                            <td>HP: ${p.hp} | X: ${Math.round(p.x)}</td>
-                            <td style="text-align:right">
+            for (let roomName in rooms) {
+                let roomHtml = `<div class="room-section"><div class="room-title">World: ${roomName}</div>`;
+                for (let id in rooms[roomName]) {
+                    const p = rooms[roomName][id];
+                    roomHtml += `
+                        <div class="player-row">
+                            <div class="player-info">
+                                <b>${p.name}</b><br>
+                                <span>ID: ${id}</span>
+                            </div>
+                            <div class="controls">
+                                <div>
+                                    <label>Wood</label>
+                                    <input type="number" class="small-input" id="wood-${id}" value="${p.wood || 0}" onfocus="isTyping=true" onblur="isTyping=false">
+                                </div>
+                                <div>
+                                    <label>Money</label>
+                                    <input type="number" class="small-input" id="money-${id}" value="${p.money || 0}" onfocus="isTyping=true" onblur="isTyping=false">
+                                </div>
+                                <button class="set-btn" onclick="updateResources('${id}')">SET</button>
+                            </div>
+                            <div style="text-align:right">
                                 <button class="kick-btn" onclick="kick('${id}')">KICK</button>
-                            </td>
-                        </tr>
+                            </div>
+                        </div>
                     `;
                 }
-                html += `</table></div>`;
-                list.innerHTML += html;
+                roomHtml += `</div>`;
+                list.innerHTML += roomHtml;
             }
+        }
+
+        function updateResources(id) {
+            const woodVal = parseInt(document.getElementById(`wood-${id}`).value);
+            const moneyVal = parseInt(document.getElementById(`money-${id}`).value);
+            
+            // Send to server (server.js will then tell the specific player's scripts.js to update)
+            socket.emit("admin-set-resource", { targetId: id, type: 'wood', amount: woodVal });
+            socket.emit("admin-set-resource", { targetId: id, type: 'money', amount: moneyVal });
+            
+            alert("Values Sent to Player!");
+            isTyping = false; // Allow refresh again
         }
 
         function kick(id) {
-            if(confirm("Kick player " + id + "?")) {
-                socket.emit("admin-kick", id);
-            }
+            if(confirm("Disconnect player?")) socket.emit("admin-kick", id);
         }
-
-        // Allow "Enter" key to login
-        document.getElementById('pass-input').addEventListener('keypress', (e) => {
-            if (e.key === 'Enter') attemptLogin();
-        });
     </script>
 </body>
 </html>
