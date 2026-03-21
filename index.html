@@ -1,116 +1,167 @@
 <!DOCTYPE html>
-<html>
+<html lang="en">
 <head>
-    <title>RPG Admin Panel</title>
+    <meta charset="UTF-8">
+    <title>Cutter RPG | Admin Panel</title>
     <script src="https://cdn.socket.io/4.7.2/socket.io.min.js"></script>
     <style>
-        body { margin: 0; background: #0f172a; color: white; font-family: sans-serif; }
-        #admin-overlay { padding: 20px; }
-        .player-card { 
-            background: #1e293b; padding: 15px; margin: 10px; border-radius: 8px; 
-            border: 1px solid #334155; display: inline-block; vertical-align: top; width: 280px; 
+        :root { 
+            --bg: #0f172a; 
+            --card: #1e293b; 
+            --text: #f8fafc; 
+            --primary: #38bdf8; 
+            --danger: #ef4444; 
+            --border: #334155; 
         }
-        .controls input { width: 60px; padding: 5px; margin: 2px; background: #0f172a; color: white; border: 1px solid #444; }
-        .controls button { padding: 5px 10px; cursor: pointer; background: #38bdf8; color: #0f172a; border: none; border-radius: 3px; font-weight: bold; margin-top: 5px; }
-        .kick-btn { background: #ef4444 !important; color: white !important; }
-        #announcement-bar { margin-bottom: 20px; padding: 15px; background: #1e293b; border-radius: 5px; border: 1px solid #334155; }
-        #announcement-bar input { padding: 8px; width: 300px; background: #0f172a; border: 1px solid #444; color: white; border-radius: 4px; }
+        body { 
+            font-family: 'Segoe UI', sans-serif; 
+            background: var(--bg); 
+            color: var(--text); 
+            margin: 0; 
+            display: flex; 
+            flex-direction: column; 
+            align-items: center; 
+            padding: 20px;
+        }
+
+        /* NEW LOGIN BOX STYLE */
+        #login-container {
+            margin-top: 100px;
+            background: var(--card);
+            padding: 30px;
+            border-radius: 12px;
+            border: 1px solid var(--border);
+            box-shadow: 0 10px 25px rgba(0,0,0,0.3);
+            text-align: center;
+            width: 350px;
+        }
+        #login-container h1 { color: var(--primary); margin-bottom: 5px; }
+        #login-container p { color: #94a3b8; font-size: 0.9rem; margin-bottom: 20px; }
+        
+        input { 
+            width: 90%; 
+            padding: 12px; 
+            margin-bottom: 15px; 
+            border-radius: 8px; 
+            border: 1px solid var(--border); 
+            background: #0f172a; 
+            color: white; 
+            font-size: 1rem;
+        }
+        
+        .btn-login {
+            width: 100%;
+            padding: 12px;
+            background: var(--primary);
+            border: none;
+            border-radius: 8px;
+            color: #0f172a;
+            font-weight: bold;
+            cursor: pointer;
+            transition: opacity 0.2s;
+        }
+        .btn-login:hover { opacity: 0.9; }
+
+        /* DASHBOARD STYLE */
+        #admin-dashboard { display: none; width: 100%; max-width: 900px; }
+        .room-card { 
+            background: var(--card); 
+            border: 1px solid var(--border); 
+            border-radius: 8px; 
+            margin-bottom: 20px; 
+            padding: 15px; 
+        }
+        .room-header { color: var(--primary); font-weight: bold; border-bottom: 1px solid var(--border); padding-bottom: 10px; margin-bottom: 10px; }
+        table { width: 100%; border-collapse: collapse; }
+        td { padding: 10px; border-bottom: 1px solid #334155; }
+        .kick-btn { background: var(--danger); color: white; border: none; padding: 5px 10px; border-radius: 4px; cursor: pointer; }
     </style>
 </head>
 <body>
-    <div id="admin-overlay" style="display:none;">
-        <h1>🛡️ ADMIN SYSTEM MONITOR</h1>
-        
-        <div id="announcement-bar">
-            <strong>GLOBAL BROADCAST:</strong> 
-            <input type="text" id="global-msg" placeholder="Type system message...">
-            <button onclick="sendAnnouncement()">SEND TO ALL</button>
-        </div>
 
-        <div id="player-list"></div>
+    <div id="login-container">
+        <h1>Cutter Admin</h1>
+        <p>Enter management credentials to proceed</p>
+        <input type="password" id="pass-input" placeholder="Password...">
+        <button class="btn-login" onclick="attemptLogin()">Access Terminal</button>
+        <div id="error-msg" style="color: var(--danger); margin-top: 10px; font-size: 0.8rem; display: none;">Invalid Password</div>
+    </div>
+
+    <div id="admin-dashboard">
+        <h2>Live Server Monitor</h2>
+        <div id="room-list"></div>
     </div>
 
     <script>
-        // Connect to your specific Render server
         const socket = io("https://server-5jkd.onrender.com/");
-        
-        // Login prompt on load
-        const pass = prompt("Admin Password:");
-        socket.emit("admin-login", pass);
+        let isAuthenticated = false;
 
-        socket.on("admin-confirmed", (rooms) => { 
-            document.getElementById('admin-overlay').style.display='block'; 
-            render(rooms); 
+        function attemptLogin() {
+            const pass = document.getElementById('pass-input').value;
+            socket.emit("admin-login", pass);
+        }
+
+        socket.on("admin-confirmed", (rooms) => {
+            isAuthenticated = true;
+            document.getElementById('login-container').style.display = 'none';
+            document.getElementById('admin-dashboard').style.display = 'block';
+            renderRooms(rooms);
         });
 
-        socket.on("admin-denied", () => { 
-            alert("Access Denied: Invalid Password"); 
-            window.location.reload(); 
+        socket.on("admin-denied", () => {
+            document.getElementById('error-msg').style.display = 'block';
         });
 
-        socket.on("admin-update", (rooms) => render(rooms));
+        socket.on("admin-update", (rooms) => {
+            if (isAuthenticated) {
+                renderRooms(rooms);
+            }
+        });
 
-        function render(rooms) {
-            const list = document.getElementById("player-list");
-            list.innerHTML = "";
+        function renderRooms(rooms) {
+            const list = document.getElementById('room-list');
             
-            for (let roomId in rooms) {
-                // Skip the internal admin group
-                if (roomId === "admin-group") continue;
+            // CRITICAL: We check if any input currently has focus
+            // If the user is typing, we DON'T overwrite the HTML
+            if (document.activeElement.tagName === 'INPUT') return;
 
-                for (let id in rooms[roomId]) {
-                    const p = rooms[roomId][id];
-                    list.innerHTML += `
-                        <div class="player-card">
-                            <strong style="color:#38bdf8">${p.name || 'Unknown'}</strong> <small>(${id})</small><br>
-                            <span style="color:#94a3b8">Room: ${roomId}</span><br>
-                            Pos: ${Math.round(p.x)}, ${Math.round(p.y)} | <span style="color:#ef4444">HP: ${p.hp}</span><br>
-                            <div class="controls">
-                                <hr style="border:0; border-top:1px solid #334155">
-                                <strong>Teleport Player</strong><br>
-                                X: <input id="x-${id}" value="${Math.round(p.x)}"> 
-                                Y: <input id="y-${id}" value="${Math.round(p.y)}">
-                                <button onclick="tp('${id}')">MOVE</button>
-                                <hr style="border:0; border-top:1px solid #334155">
-                                <strong>Modify Stats</strong><br>
-                                Wood: <input id="wood-${id}" value="${p.wood || 0}">
-                                Money: <input id="money-${id}" value="${p.money || 0}">
-                                <button onclick="setRes('${id}')">UPDATE</button>
-                                <hr style="border:0; border-top:1px solid #334155">
-                                <button class="kick-btn" onclick="kick('${id}')">KICK FROM SERVER</button>
-                            </div>
-                        </div>`;
+            list.innerHTML = "";
+            for (let name in rooms) {
+                let html = `
+                    <div class="room-card">
+                        <div class="room-header">ROOM: ${name}</div>
+                        <table>
+                `;
+                for (let id in rooms[name]) {
+                    const p = rooms[name][id];
+                    html += `
+                        <tr>
+                            <td>
+                                <b>${p.name || 'Player'}</b><br>
+                                <small style="color:#64748b">${id}</small>
+                            </td>
+                            <td>HP: ${p.hp} | X: ${Math.round(p.x)}</td>
+                            <td style="text-align:right">
+                                <button class="kick-btn" onclick="kick('${id}')">KICK</button>
+                            </td>
+                        </tr>
+                    `;
                 }
+                html += `</table></div>`;
+                list.innerHTML += html;
             }
         }
 
-        function tp(id) {
-            const x = parseInt(document.getElementById(`x-${id}`).value);
-            const y = parseInt(document.getElementById(`y-${id}`).value);
-            socket.emit("admin-teleport", { targetId: id, x, y });
-        }
-
-        function setRes(id) {
-            const wood = parseInt(document.getElementById(`wood-${id}`).value);
-            const money = parseInt(document.getElementById(`money-${id}`).value);
-            // Updates both stats in the player's local save
-            socket.emit("admin-set-resources", { targetId: id, type: 'wood', amount: wood }); 
-            socket.emit("admin-set-resources", { targetId: id, type: 'money', amount: money });
-        }
-
-        function kick(id) { 
-            if(confirm("Kick this player immediately?")) {
+        function kick(id) {
+            if(confirm("Kick player " + id + "?")) {
                 socket.emit("admin-kick", id);
             }
         }
 
-        function sendAnnouncement() {
-            const msg = document.getElementById("global-msg").value;
-            if(msg) {
-                socket.emit("admin-announce", msg);
-                document.getElementById("global-msg").value = "";
-            }
-        }
+        // Allow "Enter" key to login
+        document.getElementById('pass-input').addEventListener('keypress', (e) => {
+            if (e.key === 'Enter') attemptLogin();
+        });
     </script>
 </body>
 </html>
