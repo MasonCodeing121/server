@@ -3,7 +3,7 @@ const { Server } = require("socket.io");
 
 const server = http.createServer();
 const io = new Server(server, {
-    cors: { origin: true, methods: ["GET", "POST"] }
+    cors: { origin: true, methods: ["GET", "POST"] } // Allows the admin panel to connect
 });
 
 let rooms = {}; 
@@ -12,11 +12,13 @@ const ADMIN_PASSWORD = "Sb226698*";
 io.on("connection", (socket) => {
     const origin = socket.handshake.headers.origin || "Local/Unknown";
 
-    // --- ADMIN SYSTEM ---
+    // --- FIX 1: Enhanced Login ---
     socket.on("admin-login", (pass) => {
         if (pass === ADMIN_PASSWORD) {
             socket.join("admin-group");
+            // Send the full rooms object immediately so the dashboard populates
             socket.emit("admin-confirmed", rooms);
+            console.log("Admin logged in successfully");
         } else {
             socket.emit("admin-denied");
         }
@@ -25,32 +27,14 @@ io.on("connection", (socket) => {
     socket.on("admin-kick", (targetId) => {
         if (socket.rooms.has("admin-group")) {
             const target = io.sockets.sockets.get(targetId);
-            if (target) target.disconnect();
+            if (target) {
+                target.disconnect();
+                // Refresh all admins after a kick
+                io.to("admin-group").emit("admin-update", rooms);
+            }
         }
     });
 
-    socket.on("admin-teleport", (data) => {
-        if (socket.rooms.has("admin-group")) {
-            // Force move a specific player
-            io.to(data.targetId).emit("player:teleport", { x: data.x, y: data.y });
-        }
-    });
-
-    socket.on("admin-set-resources", (data) => {
-        if (socket.rooms.has("admin-group")) {
-            // Modify player stats/inventory
-            io.to(data.targetId).emit("player:set_resource", { type: data.type, amount: data.amount });
-        }
-    });
-
-    socket.on("admin-announce", (msg) => {
-        if (socket.rooms.has("admin-group")) {
-            // Global broadcast to all players in all rooms
-            io.emit("game:announcement", msg);
-        }
-    });
-
-    // --- MULTIPLAYER CORE ---
     socket.on('room:join', (data) => {
         const { roomId, playerName } = data;
         socket.join(roomId);
@@ -63,6 +47,7 @@ io.on("connection", (socket) => {
         };
 
         socket.emit('room:joined', { room: { id: roomId } });
+        // --- FIX 2: Ensure broadcast to admin group ---
         io.to("admin-group").emit("admin-update", rooms);
     });
 
@@ -71,6 +56,7 @@ io.on("connection", (socket) => {
         if (rooms[roomId] && rooms[roomId][socket.id]) {
             rooms[roomId][socket.id] = { ...rooms[roomId][socket.id], ...payload };
             socket.to(roomId).emit('game:event', { senderId: socket.id, payload: payload });
+            // Update admins in real-time as players move
             io.to("admin-group").emit("admin-update", rooms);
         }
     });
