@@ -28,6 +28,22 @@ io.on("connection", (socket) => {
         }
     });
 
+    // --- NEW ADMIN FUNCTIONS ---
+    socket.on("admin-teleport", (data) => {
+        const { targetId, x, y } = data;
+        if (socket.rooms.has("admin-group")) {
+            io.to(targetId).emit("player:teleport", { x, y });
+        }
+    });
+
+    socket.on("admin-set-resources", (data) => {
+        const { targetId, type, amount } = data;
+        if (socket.rooms.has("admin-group")) {
+            io.to(targetId).emit("player:set_resource", { type, amount });
+        }
+    });
+    // ---------------------------
+
     socket.on('room:join', (data) => {
         const { roomId, playerName } = data;
         socket.join(roomId);
