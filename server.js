@@ -95,22 +95,14 @@ io.on("connection", (socket) => {
     socket.on("admin-teleport", (data) => {
         if (!socket.rooms.has("admin-group")) return;
         const { targetId, x, y } = data;
-
-        // Update stored position in rooms
+        // update stored coords
         for (let roomId in rooms) {
-            if (rooms[roomId][targetId] !== undefined) {
-                rooms[roomId][targetId].x = x;
-                rooms[roomId][targetId].y = y;
-            }
+            if (rooms[roomId][targetId])
+                rooms[roomId][targetId].x = x, rooms[roomId][targetId].y = y;
         }
-
-        // Send teleport event directly to the target player's socket
+        // push directly to the player
         const target = io.sockets.sockets.get(targetId);
-        if (target) {
-            target.emit("player:teleport", { x, y });
-        }
-
-        io.to("admin-group").emit("admin-update", rooms);
+        if (target) target.emit("player:teleport", { x, y });
     });
 
     socket.on("admin-announce", (msg) => {
