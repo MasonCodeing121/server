@@ -4,7 +4,6 @@ const path = require("path");
 const { Server } = require("socket.io");
 
 function serveStatic(req, res) {
-    // Health check to verify server is awake and bypass 502s
     if (req.url === "/health") {
         res.writeHead(200, { "Content-Type": "text/plain" });
         res.end("Server is online");
@@ -42,11 +41,10 @@ function serveStatic(req, res) {
 
 const server = http.createServer(serveStatic);
 
-// UPDATED: More robust CORS to allow your specific Admin Panel and any other clients
 const io = new Server(server, {
-    cors: { 
-        origin: "*", // Allows any origin to connect, fixing the CORS block
-        methods: ["GET", "POST"] 
+    cors: {
+        origin: "*",
+        methods: ["GET", "POST"],
     },
 });
 
@@ -67,12 +65,11 @@ io.on("connection", (socket) => {
     });
 
     socket.on("admin-kick", (targetId) => {
-        if (socket.rooms.has("admin-group")) {
-            const target = io.sockets.sockets.get(targetId);
-            if (target) {
-                target.disconnect();
-                io.to("admin-group").emit("admin-update", rooms);
-            }
+        if (!socket.rooms.has("admin-group")) return;
+        const target = io.sockets.sockets.get(targetId);
+        if (target) {
+            target.disconnect();
+            io.to("admin-group").emit("admin-update", rooms);
         }
     });
 
@@ -89,6 +86,28 @@ io.on("connection", (socket) => {
         const target = io.sockets.sockets.get(targetId);
         if (target) {
             target.emit("player:set_resource", { type, amount });
+        }
+
+        io.to("admin-group").emit("admin-update", rooms);
+    });
+
+    // Teleport a player to a new world position
+    socket.on("admin-teleport", (data) => {
+        if (!socket.rooms.has("admin-group")) return;
+        const { targetId, x, y } = data;
+
+        // Update stored position in rooms
+        for (let roomId in rooms) {
+            if (rooms[roomId][targetId] !== undefined) {
+                rooms[roomId][targetId].x = x;
+                rooms[roomId][targetId].y = y;
+            }
+        }
+
+        // Send teleport event directly to the target player's socket
+        const target = io.sockets.sockets.get(targetId);
+        if (target) {
+            target.emit("player:teleport", { x, y });
         }
 
         io.to("admin-group").emit("admin-update", rooms);
@@ -154,3 +173,4 @@ io.on("connection", (socket) => {
 
 const PORT = process.env.PORT || 5000;
 server.listen(PORT, () => console.log(`Server running on port ${PORT}`));
+console.log("Server started");
